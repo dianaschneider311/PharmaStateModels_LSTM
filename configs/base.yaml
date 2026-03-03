@@ -1,0 +1,32 @@
+project:
+  name: pharma-state-models-lstm
+  random_seed: 42
+
+data:
+  input_path: data/raw/hcp_monthly_interactions.csv
+  output_predictions_path: data/processed/predictions.csv
+  id_column: hcp_id
+  time_column: month
+  target_column: visit1MonthCount
+  sequence_length: 11
+
+features:
+  email: []
+  f2f: []
+  virtual: []
+  rep: []
+  context: []
+
+model:
+  task_type: regression  # regression | binary_classification | multiclass_classification
+  lstm_units: 64
+  dropout: 0.2
+  dense_units: 32
+  learning_rate: 0.001
+
+training:
+  batch_size: 32
+  epochs: 50
+  validation_split: 0.2
+  early_stopping_patience: 5
+

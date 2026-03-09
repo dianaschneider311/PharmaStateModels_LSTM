@@ -30,3 +30,11 @@ training:
   validation_split: 0.2
   early_stopping_patience: 5
 
+scoring:
+  output_profiles_path: data/processed/account_profiles.csv
+  tuned_thresholds_path: data/processed/tuned_thresholds.json
+  use_tuned_thresholds: true
+  channel_thresholds:
+    ap_segment_trend: 0.50
+    visit: 0.50
+    email: 0.50

@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 import numpy as np
+from pharma_state_models.config import PREDICTED_TIME_PERIOD, TARGET_COLUMNS, TEST_SIZE, RANDOM_SEED
 from pharma_state_models.data.ingestion import load_raw_data
-
-predicted_time_period = "202311"
-target_columns = ["ap_segment_trend","visit1MonthCount","emailOpen1MonthCount"]
-test_size = 0.2
 
 state_columns = {
     "visit": [
@@ -92,9 +89,9 @@ def run_preliminary_preprocessing(
 )    
     result = clean_merge_columns(result)
     result["yearMonth"] = result["yearMonth"].astype(str)
-    result = result[result["yearMonth"] != "202312"]
-    # filter in Ocrevus 
-    result = result[result["productId"] == 1016]
+    # result = result[result["yearMonth"] != PREDICTED_TIME_PERIOD]
+    # filter in product 
+    result = result[result["productId"] == -1]
     # sort by account + yearMonth
     result = result.sort_values(by=["accountId","yearMonth"],ascending=[True,True])
     # missing substitution 
@@ -160,8 +157,8 @@ def sort_key(col):
 def partitioning_train_test_accounts(
     df,
     account_col="accountUid",
-    test_size=0.2,
-    seed=42,
+    test_size=TEST_SIZE,
+    seed=RANDOM_SEED,
 ):
     unique_accounts = df[account_col].dropna().unique()
 
@@ -175,7 +172,7 @@ def partitioning_train_test_accounts(
     df_train = df[df[account_col].isin(train_accounts)].copy()
     df_test = df[df[account_col].isin(test_accounts)].copy()
 
-    return df_train,df_test
+    return df_train, df_test, train_accounts, test_accounts
 
 
 def build_train_test_data():
@@ -195,28 +192,29 @@ def build_train_test_data():
 
     # binary targets for 3 models
     cols_exception = []
-    for target in target_columns:
-        col = f"{target}_{predicted_time_period}"
+    for target in TARGET_COLUMNS:
+        col = f"{target}_{PREDICTED_TIME_PERIOD}"
         df_ts[col] = np.where(df_ts[col] > 0, 1, 0)
         cols_exception.append(col)
 
     # remove the columns related to the predicted time period
     cols_to_remove = [
         c for c in df_ts.columns
-        if c.endswith(predicted_time_period) and c not in cols_exception
+        if c.endswith(PREDICTED_TIME_PERIOD) and c not in cols_exception
     ]
     df_ts = df_ts.drop(columns=cols_to_remove)
 
     # columns sorted by year + month + col_name
     df_ts = df_ts[sorted(df_ts.columns, key=sort_key)]
 
-    df_train, df_test = partitioning_train_test_accounts(df_ts)
+    df_train, df_test, train_accounts, test_accounts = partitioning_train_test_accounts(df_ts)
 
     return df_train, df_test
 def main():
     print("START", flush=True)
     df_train, df_test = build_train_test_data()
     print(df_train.shape, df_test.shape)
+    # print(len(train_accounts), len(test_accounts))
 
 
 if __name__ == "__main__":

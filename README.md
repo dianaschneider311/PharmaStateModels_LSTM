@@ -1,19 +1,30 @@
 # PharmaStateModels_LSTM
 
-Skeleton project for a multivariate many-to-one LSTM workflow that predicts next-period HCP behaviors and propensities across channels.
+Multichannel HCP propensity modeling project using an LSTM backbone with three binary channel heads:
+- `ap_segment_trend`
+- `visit`
+- `email`
 
 ## Scope
-- Build-only skeleton (no business logic implemented)
-- Data preparation, sequence building, training, evaluation, and inference placeholders
-- Folder layout compatible with incremental step-by-step implementation
+- Account-level monthly feature engineering from raw channel data
+- Train/test preprocessing with normalization
+- Multi-head LSTM training and evaluation
+- Threshold tuning per channel (validation F1-based)
+- Prediction export and account profile export for downstream business use
 
 ## High-Level Workflow
-1. Ingest multichannel monthly HCP data
-2. Preprocess and normalize features
-3. Build rolling sequence windows (11 months history -> t+1 target)
-4. Train LSTM model
-5. Evaluate by task type (regression or classification)
-6. Export predictions and state features for downstream systems
+1. Ingest and merge raw multichannel monthly HCP data
+2. Build flattened account-level time-series feature table
+3. Split accounts into train/test
+4. Preprocess time-series tensors for LSTM (`X_train`, `X_test`, per-head labels)
+5. Train multi-head LSTM and tune per-head thresholds on validation set
+6. Save:
+   - predictions + features table
+   - tuned thresholds JSON
+7. Build account profile table with recommended channel flags using tuned thresholds
+
+## Pipeline Diagram
+![Pipeline Flow](docs/pipeline.png)
 
 ## Project Structure
 ```text
@@ -54,9 +65,48 @@ PharmaStateModels_LSTM/
   pyproject.toml
 ```
 
-## Quick Start
+## Configuration
+Main config: `configs/base.yaml`
+
+Key sections:
+- `data.output_predictions_path`: path for train pipeline predictions output
+- `scoring.output_profiles_path`: path for account profile output
+- `scoring.use_tuned_thresholds`: if `true`, score pipeline loads thresholds from JSON saved by training
+- `scoring.tuned_thresholds_path`: path to tuned thresholds JSON
+- `scoring.channel_thresholds`: fallback thresholds (used when tuned-threshold file is missing or disabled)
+
+## Run Training Pipeline
 ```bash
 python -m pharma_state_models.pipelines.train_pipeline --config configs/base.yaml
 ```
 
-Current behavior is intentionally placeholder-only and will raise `NotImplementedError` in unimplemented modules.
+Training pipeline outputs:
+- `data/processed/predictions.csv`
+- `data/processed/tuned_thresholds.json`
+
+`predictions.csv` includes:
+- account-level input features
+- `*_prob1` per channel
+- `dataset_split` (`train` / `test`)
+
+## Run Scoring / Account Profiling Pipeline
+```bash
+python -m pharma_state_models.pipelines.score_pipeline --config configs/base.yaml
+```
+
+Scoring pipeline reads predictions and thresholds, then writes:
+- `data/processed/account_profiles.csv`
+
+`account_profiles.csv` includes:
+- account id
+- channel probabilities (`*_prob1`)
+- `top_channel`
+- `top_channel_score`
+- `recommended_channel`
+- `propensity_confidence`
+- per-channel recommendation flags (`recommend_*`)
+
+## Notes
+- Model is currently multi-output binary classification (sigmoid per channel).
+- Email class imbalance handling uses SMOTE on the training set in preprocessing.
+- Some modules remain scaffolded for future extension (for example generic sequence builder and standalone evaluation helpers).
